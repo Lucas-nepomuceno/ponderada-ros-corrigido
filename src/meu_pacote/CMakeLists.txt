@@ -14,8 +14,12 @@ find_package(cg_interfaces REQUIRED)
 add_executable(algoritmo_parte_1 src/algoritmo.cpp)
 ament_target_dependencies(algoritmo_parte_1 rclcpp cg_interfaces)
 
+add_executable(algoritmo_parte_2 src/algoritmo_2.cpp)
+ament_target_dependencies(algoritmo_parte_2 rclcpp cg_interfaces)
+
 install(TARGETS
   algoritmo_parte_1
+  algoritmo_parte_2
   DESTINATION lib/${PROJECT_NAME}
 )
 

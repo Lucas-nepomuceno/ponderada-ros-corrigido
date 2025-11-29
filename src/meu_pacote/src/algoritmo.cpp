@@ -406,24 +406,9 @@ int main(int argc, char **argv) {
 
     struct mapa_normal mapa_a_ser_buscado;
     mapa_a_ser_buscado = deixa_em_formato_de_mapa(mapa_flattened);
-    Par robo;
-    Par target;
-
-    for (int i = 0; i < LINHA; i++) {
-        for (int j = 0; j < COLUNA; j++){
-            if(mapa_a_ser_buscado.mapa[i][j] == 'r'){
-                robo = make_pair(i,j);
-            }
-        }
-    }
-
-    for (int i = 0; i < LINHA; i++) {
-        for (int j = 0; j < COLUNA; j++){
-            if(mapa_a_ser_buscado.mapa[i][j] == 't'){
-                target = make_pair(i,j);
-            }
-        }
-    }
+    
+    Par robo = make_pair(1,1);
+    Par target = make_pair(15,15);
 
     busca_por_a_estrela(mapa_a_ser_buscado, robo, target, no.get());
 
