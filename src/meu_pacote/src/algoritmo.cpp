@@ -357,9 +357,8 @@ int main(int argc, char **argv) {
     }
 
     rclcpp::shutdown();
-    return 0;
 
-    /* struct mapa_normal mapa_a_ser_buscado;
+    struct mapa_normal mapa_a_ser_buscado;
     mapa_a_ser_buscado = deixa_em_formato_de_mapa(mapa_flattened);
     Par robo;
     Par target;
@@ -392,5 +391,5 @@ int main(int argc, char **argv) {
 
     busca_por_a_estrela(mapa_a_ser_buscado, robo, target);
 
-    return (0); */
+    return (0);
 }
