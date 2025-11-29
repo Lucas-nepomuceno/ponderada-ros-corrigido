@@ -11,11 +11,11 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(cg_interfaces REQUIRED)
 
-add_executable(get_mapa src/algoritmo.cpp)
-ament_target_dependencies(get_mapa rclcpp cg_interfaces)
+add_executable(algoritmo_parte_1 src/algoritmo.cpp)
+ament_target_dependencies(algoritmo_parte_1 rclcpp cg_interfaces)
 
 install(TARGETS
-  get_mapa
+  algoritmo_parte_1
   DESTINATION lib/${PROJECT_NAME}
 )
 

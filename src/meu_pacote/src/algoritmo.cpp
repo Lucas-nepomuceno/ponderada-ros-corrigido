@@ -6,7 +6,44 @@ using namespace std;
 #define LINHA 29
 #define COLUNA 29
 
-// Referência: geeksforgeeks.org/dsa/a-search-algorithm
+
+class AlgoritmoParte1 : public rclcpp::Node
+{
+public:
+    AlgoritmoParte1()
+    : Node("algoritmo_parte_1")
+    {
+        client = this->create_client<cg_interfaces::srv::GetMap>("get_map");
+
+        while (!client->wait_for_service(std::chrono::seconds(1))) {
+            RCLCPP_INFO(this->get_logger(), "Aguardando serviço get_map...");
+        }
+
+        auto request = std::make_shared<cg_interfaces::srv::GetMap::Request>();
+        result_future = client->async_send_request(request).future.share();
+    }
+
+    std::vector<std::string> getMapa()
+    {
+        if (rclcpp::spin_until_future_complete(
+                this->shared_from_this(), 
+                result_future) == rclcpp::FutureReturnCode::SUCCESS)
+        {
+            RCLCPP_INFO(this->get_logger(), "Peguei o mapa");
+
+            return result_future.get()->occupancy_grid_flattened;
+        }
+        else
+        {
+            RCLCPP_ERROR(this->get_logger(), "Falhou ao chamar get_map");
+            return {};
+        }
+    }
+
+private:
+    rclcpp::Client<cg_interfaces::srv::GetMap>::SharedPtr client;
+    rclcpp::Client<cg_interfaces::srv::GetMap>::SharedFuture result_future;
+};
 
 typedef pair<int, int> Par;
 
@@ -42,6 +79,7 @@ struct mapa_normal deixa_em_formato_de_mapa(const std::vector<std::string>& mapa
     return mapa_normal;
 }
 
+// Referência: geeksforgeeks.org/dsa/a-search-algorithm
 //Função utilitária para checar validade da celula.
 bool eh_valida(int linha, int coluna)
 {
@@ -326,37 +364,10 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target) 
 int main(int argc, char **argv) {    
     rclcpp::init(argc, argv);
 
-    // Cria o node
-    std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("get_map");
-    rclcpp::Client<cg_interfaces::srv::GetMap>::SharedPtr client =
-    node->create_client<cg_interfaces::srv::GetMap>("get_map");
-
-    // Faz o request
-    auto request = std::make_shared<cg_interfaces::srv::GetMap::Request>();
-
-    // Espera pelo serviço
-    while (!client->wait_for_service(std::chrono::seconds(60))) {
-        if (!rclcpp::ok()) {
-            RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
-            return 0;
-        }
-        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
-    }
-
-    auto result = client->async_send_request(request);
-    std::vector<std::string> mapa_flattened;
-
-    // Espera pelo resultados"
-    if (rclcpp::spin_until_future_complete(node, result) ==
-        rclcpp::FutureReturnCode::SUCCESS)
-    {
-        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Peguei o mapa");
-        mapa_flattened = result.get()->occupancy_grid_flattened;
-     } else {
-        RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service get_map");
-    }
-
-    rclcpp::shutdown();
+    auto no = std::make_shared<AlgoritmoParte1>();
+    rclcpp::spin_some(no);
+    // Espera o mapa
+    auto mapa_flattened = no->getMapa();
 
     struct mapa_normal mapa_a_ser_buscado;
     mapa_a_ser_buscado = deixa_em_formato_de_mapa(mapa_flattened);
@@ -367,7 +378,6 @@ int main(int argc, char **argv) {
         for (int j = 0; j < COLUNA; j++){
             if(mapa_a_ser_buscado.mapa[i][j] == 'r'){
                 robo = make_pair(i,j);
-                cout << "O robo é:" << mapa_a_ser_buscado.mapa[robo.first][robo.second] << endl;
             }
         }
     }
@@ -376,7 +386,6 @@ int main(int argc, char **argv) {
         for (int j = 0; j < COLUNA; j++){
             if(mapa_a_ser_buscado.mapa[i][j] == 't'){
                 target = make_pair(i,j);
-                cout << "O target é:" << mapa_a_ser_buscado.mapa[target.first][target.second] << endl;
             }
         }
     }
@@ -390,6 +399,8 @@ int main(int argc, char **argv) {
     }
 
     busca_por_a_estrela(mapa_a_ser_buscado, robo, target);
+
+    rclcpp::shutdown();
 
     return (0);
 }
