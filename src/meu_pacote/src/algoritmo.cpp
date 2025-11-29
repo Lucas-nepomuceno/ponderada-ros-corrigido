@@ -2,6 +2,7 @@
 #include <iostream>
 #include "rclcpp/rclcpp.hpp"
 #include "cg_interfaces/srv/get_map.hpp"
+#include "cg_interfaces/srv/move_cmd.hpp"
 using namespace std;
 #define LINHA 29
 #define COLUNA 29
@@ -13,14 +14,16 @@ public:
     AlgoritmoParte1()
     : Node("algoritmo_parte_1")
     {
-        client = this->create_client<cg_interfaces::srv::GetMap>("get_map");
+        get_map_client = this->create_client<cg_interfaces::srv::GetMap>("get_map");
 
-        while (!client->wait_for_service(std::chrono::seconds(1))) {
+        while (!get_map_client->wait_for_service(std::chrono::seconds(1))) {
             RCLCPP_INFO(this->get_logger(), "Aguardando serviço get_map...");
         }
 
+        move_robot_client = this->create_client<cg_interfaces::srv::MoveCmd>("move_command");
+
         auto request = std::make_shared<cg_interfaces::srv::GetMap::Request>();
-        result_future = client->async_send_request(request).future.share();
+        result_future = get_map_client->async_send_request(request).future.share();
     }
 
     std::vector<std::string> getMapa()
@@ -40,9 +43,50 @@ public:
         }
     }
 
+    int move(char direction)
+    {
+        auto request = std::make_shared<cg_interfaces::srv::MoveCmd::Request>();
+
+        switch(direction) {
+            case 'u': request->direction = "up"; break;
+            case 'd': request->direction = "down"; break;
+            case 'l': request->direction = "left"; break;
+            case 'r': request->direction = "right"; break;
+            default:
+                RCLCPP_ERROR(this->get_logger(), "Direção inválida");
+                return -1;
+        }
+
+        if (!move_robot_client->wait_for_service(std::chrono::seconds(1))) {
+            RCLCPP_ERROR(this->get_logger(), "Serviço move_command não disponível");
+            return -1;
+        }
+
+        auto future = move_robot_client->async_send_request(request);
+
+        if (rclcpp::spin_until_future_complete(this->shared_from_this(), future)
+            == rclcpp::FutureReturnCode::SUCCESS)
+        {
+            switch(direction) {
+            case 'u': RCLCPP_INFO(this->get_logger(), "Movido para cima!"); break;
+            case 'd': RCLCPP_INFO(this->get_logger(), "Movido para baixo!"); break;
+            case 'l': RCLCPP_INFO(this->get_logger(), "Movido para esquerda!"); break;
+            case 'r': RCLCPP_INFO(this->get_logger(), "Movido para direita!"); break;
+            default:
+                RCLCPP_ERROR(this->get_logger(), "Direção inválida");
+                return -1;
+            }
+            return 0;
+        } else {
+            RCLCPP_ERROR(this->get_logger(), "Falha ao mover");
+            return -1;
+        }
+    }
+
 private:
-    rclcpp::Client<cg_interfaces::srv::GetMap>::SharedPtr client;
+    rclcpp::Client<cg_interfaces::srv::GetMap>::SharedPtr get_map_client;
     rclcpp::Client<cg_interfaces::srv::GetMap>::SharedFuture result_future;
+    rclcpp::Client<cg_interfaces::srv::MoveCmd>::SharedPtr move_robot_client;
 };
 
 typedef pair<int, int> Par;
@@ -115,7 +159,7 @@ double calcula_valor_de_h(int linha, int coluna, Par target) {
 }
 
 // Função utilitária para fazer o caminho do robô
-void encontra_caminho(celula detalhes_das_celulas[LINHA][COLUNA], Par target)
+void encontra_caminho(celula detalhes_das_celulas[LINHA][COLUNA], Par target, AlgoritmoParte1* no)
 {
     //Começa do alvo
     int linha = target.first;
@@ -140,26 +184,13 @@ void encontra_caminho(celula detalhes_das_celulas[LINHA][COLUNA], Par target)
     while (!Caminho.empty()) {
         char p = Caminho.top();
         Caminho.pop();
-        switch(p) {
-            case 'u':
-                cout << "Move up" << endl;
-                break;
-            case 'd':
-                cout << "Move down" << endl;
-                break;
-            case 'l':
-                cout << "Move left" << endl;
-                break;
-            case 'r':
-                cout << "Move right" << endl;
-                break;
-        }
+        no->move(p);
     }
 
     return;
 }
 
-void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target) {
+void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target, AlgoritmoParte1* no) {
     bool lista_fechada[LINHA][COLUNA];
     memset(lista_fechada, false, sizeof(lista_fechada));
 
@@ -211,8 +242,9 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target) 
             if (eh_target(i - 1, j, target)) {
                 detalhes_das_celulas[i - 1][j].pai_x = i;
                 detalhes_das_celulas[i - 1][j].pai_y = j;
+                detalhes_das_celulas[i - 1][j].comando = 'u';
                 printf("Encontramos o target\n");
-                encontra_caminho(detalhes_das_celulas, target);
+                encontra_caminho(detalhes_das_celulas, target, no);
                 achou_o_target = true;
                 return;
             }
@@ -248,8 +280,9 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target) 
             if (eh_target(i + 1, j, target)) {
                 detalhes_das_celulas[i + 1][j].pai_x = i;
                 detalhes_das_celulas[i + 1][j].pai_y = j;
+                detalhes_das_celulas[i + 1][j].comando = 'd';
                 printf("Encontramos o target\n");
-                encontra_caminho(detalhes_das_celulas, target);
+                encontra_caminho(detalhes_das_celulas, target, no);
                 achou_o_target = true;
                 return;
             }
@@ -285,8 +318,9 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target) 
             if (eh_target(i, j - 1, target)) {
                 detalhes_das_celulas[i][j - 1].pai_x = i;
                 detalhes_das_celulas[i][j - 1].pai_y = j;
+                detalhes_das_celulas[i][j- 1].comando = 'l';
                 printf("Encontramos o target\n");
-                encontra_caminho(detalhes_das_celulas, target);
+                encontra_caminho(detalhes_das_celulas, target, no);
                 achou_o_target = true;
                 return;
             }
@@ -322,8 +356,9 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target) 
             if (eh_target(i, j + 1, target)) {
                 detalhes_das_celulas[i][j + 1].pai_x = i;
                 detalhes_das_celulas[i][j + 1].pai_y = j;
+                detalhes_das_celulas[i][j+ 1].comando = 'r';
                 printf("Encontramos o target\n");
-                encontra_caminho(detalhes_das_celulas, target);
+                encontra_caminho(detalhes_das_celulas, target, no);
                 achou_o_target = true;
                 return;
             }
@@ -390,15 +425,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    cout << "o mapa a ser buscado é:" << endl;
-    for (int i = 0; i < LINHA; i++) {
-        for(int j = 0; j < COLUNA; j++){
-            cout << mapa_a_ser_buscado.mapa[i][j];
-        }
-        cout << endl;
-    }
-
-    busca_por_a_estrela(mapa_a_ser_buscado, robo, target);
+    busca_por_a_estrela(mapa_a_ser_buscado, robo, target, no.get());
 
     rclcpp::shutdown();
 
