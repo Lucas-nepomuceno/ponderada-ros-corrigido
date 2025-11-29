@@ -1,0 +1,50 @@
+# === ROS2 colcon build artefacts ===
+build/
+install/
+log/
+
+# === catkin (se houver) ===
+devel/
+.catkin_tools/
+
+# === Arquivos CMake gerados ===
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+
+# === Arquivos do VSCode ===
+.vscode/
+*.code-workspace
+
+# === Arquivos de CLion / JetBrains ===
+.idea/
+cmake-build-*/
+
+# === Arquivos de compilação C++ ===
+*.o
+*.so
+*.a
+*.out
+*.exe
+
+# === Arquivos de dependências gerados pelo rosdep ===
+ros2_ws/install/
+ros2_ws/build/
+ros2_ws/log/
+
+# === Python (se você tiver nós Python também) ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# === Archivos temporários ===
+*.swp
+*.swo
+*~
+.DS_Store
+
+# === Colcon test results ===
+test_results/
