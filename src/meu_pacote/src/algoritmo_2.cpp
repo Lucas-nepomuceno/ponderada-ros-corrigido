@@ -1,7 +1,7 @@
 #include <bits/stdc++.h>
 #include <iostream>
 #include "rclcpp/rclcpp.hpp"
-#include "cg_interfaces/srv/get_map.hpp"
+#include "cg_interfaces/srv/reset.hpp"
 #include "cg_interfaces/srv/move_cmd.hpp"
 #include "cg_interfaces/msg/robot_sensors.hpp"
 using namespace std;
@@ -16,13 +16,15 @@ public:
     : Node("algoritmo_parte_2")
     {
         move_robot_client = this->create_client<cg_interfaces::srv::MoveCmd>("move_command");
+        reset_client = this->create_client<cg_interfaces::srv::Reset>("reset");
 
         subscriber =
             this->create_subscription<cg_interfaces::msg::RobotSensors>(
                 "/culling_games/robot_sensors",
                 rclcpp::SensorDataQoS(),
                 std::bind(&AlgoritmoParte2::topic_callback, this, std::placeholders::_1)
-            );    }
+            );    
+    }
 
     int move(char direction)
     {
@@ -57,9 +59,31 @@ public:
                 RCLCPP_ERROR(this->get_logger(), "Direção inválida");
                 return -1;
             }
+            rclcpp::sleep_for(5ms);
             return 0;
         } else {
             RCLCPP_ERROR(this->get_logger(), "Falha ao mover");
+            return -1;
+        }
+    }
+
+    int reset()
+    {
+        auto request = std::make_shared<cg_interfaces::srv::Reset::Request>();
+
+        if (!reset_client->wait_for_service(std::chrono::seconds(1))) {
+            RCLCPP_ERROR(this->get_logger(), "Serviço reset não disponível");
+            return -1;
+        }
+
+        auto future = reset_client->async_send_request(request);
+
+        if (rclcpp::spin_until_future_complete(this->shared_from_this(), future)
+            == rclcpp::FutureReturnCode::SUCCESS)
+        {
+            return 0;
+        } else {
+            RCLCPP_ERROR(this->get_logger(), "Falha ao resetar mapa");
             return -1;
         }
     }
@@ -75,6 +99,7 @@ public:
 
 private:
     rclcpp::Client<cg_interfaces::srv::MoveCmd>::SharedPtr move_robot_client;
+    rclcpp::Client<cg_interfaces::srv::Reset>::SharedPtr reset_client;
     rclcpp::Subscription<cg_interfaces::msg::RobotSensors>::SharedPtr subscriber; 
     cg_interfaces::msg::RobotSensors ultimo_sensor_status;
     bool ultima_direcao_recebida;
@@ -97,11 +122,16 @@ struct mapa_normal
 	char mapa[LINHA][COLUNA];
 };
 
+
 //estrutura que guarda os pais e os parametros do A*
 struct celula {
     int pai_x, pai_y;
     char comando;
     double f, g, h;
+};
+
+struct caminho_correto {
+    celula mapa_buscado[LINHA][COLUNA];
 };
 
 // Função utilitária para devolver o mapa normal (29x29)
@@ -129,13 +159,25 @@ bool eh_valida(int linha, int coluna)
            && (coluna < COLUNA);
 }
 
-// Função utilitária para ver se a célula tá bloqueada
-bool eh_bloqueada(int linha, int coluna, mapa_normal mapa) {
-    if (mapa.mapa[linha][coluna] == 'b') {
-        return true;
-    }
+bool eh_bloqueada(char direction, AlgoritmoParte2* no) {
+    auto dado_do_sensor = no->getUltimoSensorStatus();
 
-    return false;
+    switch(direction) {
+        case 'u': 
+            return dado_do_sensor.up == "b";
+        case 'd': 
+            return dado_do_sensor.down == "b";
+
+        case 'l': 
+            return dado_do_sensor.left == "b";
+
+        case 'r': 
+            return dado_do_sensor.right == "b";
+
+        default:
+            std::cerr << "Direção inválida\n";
+            return true;   // considere inválido como bloqueado
+    }
 }
 
 // Função utilitária para ver se a célula é o target
@@ -184,10 +226,13 @@ void encontra_caminho(celula detalhes_das_celulas[LINHA][COLUNA], Par target, Al
         no->move(p);
     }
 
+    rclcpp::sleep_for(300ms);
+    rclcpp::spin_some(no->get_node_base_interface());
+
     return;
 }
 
-void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target, AlgoritmoParte2* no) {
+caminho_correto busca_por_a_estrela (Par robo, Par target, AlgoritmoParte2* no) {
     bool lista_fechada[LINHA][COLUNA];
     memset(lista_fechada, false, sizeof(lista_fechada));
 
@@ -204,6 +249,8 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target, 
             detalhes_das_celulas[i][j].pai_y = -1;
         }
     }
+
+    caminho_correto caminho_correto;
 
     // Iniciando os parametros da robo
     i = robo.first, j = robo.second;
@@ -231,6 +278,15 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target, 
         j = primeiro_da_lista.second.second;
         lista_fechada[i][j] = true;
 
+        Par lugar = make_pair(i,j);
+
+        if (!achou_o_target) {
+            no->reset();
+            rclcpp::sleep_for(1000ms);
+            encontra_caminho(detalhes_das_celulas, lugar, no);
+            rclcpp::sleep_for(100ms);
+        }
+
         double gNovo, hNovo, fNovo;
 
         //Primeiro Sucessor: cima
@@ -241,13 +297,17 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target, 
                 detalhes_das_celulas[i - 1][j].pai_y = j;
                 detalhes_das_celulas[i - 1][j].comando = 'u';
                 printf("Encontramos o target\n");
-                encontra_caminho(detalhes_das_celulas, target, no);
                 achou_o_target = true;
-                return;
+                for (int a = 0; a < LINHA; a++) {
+                    for (int b = 0; b < COLUNA; b++) {
+                        caminho_correto.mapa_buscado[a][b] = detalhes_das_celulas[a][b];
+                    }
+                }
+                return caminho_correto;
             }
             //Se não está na lista fechada e não é bloqueada
             else if (lista_fechada[i - 1][j] == false
-                     && !eh_bloqueada(i - 1, j, mapa_a_ser_buscado)) {
+                     && !eh_bloqueada('u', no)) {
                 gNovo = detalhes_das_celulas[i][j].g + 1.0;
                 hNovo = calcula_valor_de_h(i - 1, j, target);
                 fNovo = gNovo + hNovo;
@@ -279,13 +339,17 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target, 
                 detalhes_das_celulas[i + 1][j].pai_y = j;
                 detalhes_das_celulas[i + 1][j].comando = 'd';
                 printf("Encontramos o target\n");
-                encontra_caminho(detalhes_das_celulas, target, no);
                 achou_o_target = true;
-                return;
+                for (int a = 0; a < LINHA; a++) {
+                    for (int b = 0; b < COLUNA; b++) {
+                        caminho_correto.mapa_buscado[a][b] = detalhes_das_celulas[a][b];
+                    }
+                }
+                return caminho_correto;
             }
             //Se não está na lista fechada e não é bloqueada
             else if (lista_fechada[i + 1][j] == false
-                     && !eh_bloqueada(i + 1, j, mapa_a_ser_buscado)) {
+                     && !eh_bloqueada('d', no)) {
                 gNovo = detalhes_das_celulas[i][j].g + 1.0;
                 hNovo = calcula_valor_de_h(i + 1, j, target);
                 fNovo = gNovo + hNovo;
@@ -317,13 +381,17 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target, 
                 detalhes_das_celulas[i][j - 1].pai_y = j;
                 detalhes_das_celulas[i][j- 1].comando = 'l';
                 printf("Encontramos o target\n");
-                encontra_caminho(detalhes_das_celulas, target, no);
                 achou_o_target = true;
-                return;
+                for (int a = 0; a < LINHA; a++) {
+                    for (int b = 0; b < COLUNA; b++) {
+                        caminho_correto.mapa_buscado[a][b] = detalhes_das_celulas[a][b];
+                    }
+                }
+                return caminho_correto;
             }
             //Se não está na lista fechada e não é bloqueada
             else if (lista_fechada[i][j - 1] == false
-                     && !eh_bloqueada(i, j - 1, mapa_a_ser_buscado)) {
+                     && !eh_bloqueada('l', no)) {
                 gNovo = detalhes_das_celulas[i][j].g + 1.0;
                 hNovo = calcula_valor_de_h(i, j - 1, target);
                 fNovo = gNovo + hNovo;
@@ -355,13 +423,17 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target, 
                 detalhes_das_celulas[i][j + 1].pai_y = j;
                 detalhes_das_celulas[i][j+ 1].comando = 'r';
                 printf("Encontramos o target\n");
-                encontra_caminho(detalhes_das_celulas, target, no);
                 achou_o_target = true;
-                return;
+                for (int a = 0; a < LINHA; a++) {
+                    for (int b = 0; b < COLUNA; b++) {
+                        caminho_correto.mapa_buscado[a][b] = detalhes_das_celulas[a][b];
+                    }
+                }
+                return caminho_correto;
             }
             //Se não está na lista fechada e não é bloqueada
             else if (lista_fechada[i][j + 1] == false
-                     && !eh_bloqueada(i, j + 1, mapa_a_ser_buscado)) {
+                     && !eh_bloqueada('r', no)) {
                 gNovo = detalhes_das_celulas[i][j].g + 1.0;
                 hNovo = calcula_valor_de_h(i, j + 1, target);
                 fNovo = gNovo + hNovo;
@@ -390,7 +462,12 @@ void busca_por_a_estrela (mapa_normal mapa_a_ser_buscado, Par robo, Par target, 
     if (!achou_o_target)
         printf("A célula target não foi encontrada\n");
 
-    return;
+    for (int a = 0; a < LINHA; a++) {
+        for (int b = 0; b < COLUNA; b++) {
+            caminho_correto.mapa_buscado[a][b] = detalhes_das_celulas[a][b];
+        }
+    }
+    return caminho_correto;
 }
 
 int main(int argc, char **argv) {    
@@ -403,14 +480,15 @@ int main(int argc, char **argv) {
         rclcpp::spin_some(no);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-
-    auto direcao = no->getUltimoSensorStatus();
-    cout << direcao.up << endl;
     
     Par robo = make_pair(1,1);
-    Par target = make_pair(15,15);
+    Par target = make_pair(14,14);
 
-    busca_por_a_estrela(robo, target, no.get());
+    caminho_correto caminho_correto = busca_por_a_estrela(robo, target, no.get());
+
+    no->reset();
+    rclcpp::sleep_for(3000ms);
+    encontra_caminho(caminho_correto.mapa_buscado, target, no.get());
 
     rclcpp::shutdown();
 

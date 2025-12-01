@@ -408,7 +408,7 @@ int main(int argc, char **argv) {
     mapa_a_ser_buscado = deixa_em_formato_de_mapa(mapa_flattened);
     
     Par robo = make_pair(1,1);
-    Par target = make_pair(15,15);
+    Par target = make_pair(14,14);
 
     busca_por_a_estrela(mapa_a_ser_buscado, robo, target, no.get());
 
