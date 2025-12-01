@@ -130,10 +130,6 @@ struct celula {
     double f, g, h;
 };
 
-struct caminho_correto {
-    celula mapa_buscado[LINHA][COLUNA];
-};
-
 // Função utilitária para devolver o mapa normal (29x29)
 struct mapa_normal deixa_em_formato_de_mapa(const std::vector<std::string>& mapa) {
     struct mapa_normal mapa_normal;
@@ -232,7 +228,7 @@ void encontra_caminho(celula detalhes_das_celulas[LINHA][COLUNA], Par target, Al
     return;
 }
 
-caminho_correto busca_por_a_estrela (Par robo, Par target, AlgoritmoParte2* no) {
+void busca_por_a_estrela (Par robo, Par target, AlgoritmoParte2* no) {
     bool lista_fechada[LINHA][COLUNA];
     memset(lista_fechada, false, sizeof(lista_fechada));
 
@@ -249,8 +245,6 @@ caminho_correto busca_por_a_estrela (Par robo, Par target, AlgoritmoParte2* no) 
             detalhes_das_celulas[i][j].pai_y = -1;
         }
     }
-
-    caminho_correto caminho_correto;
 
     // Iniciando os parametros da robo
     i = robo.first, j = robo.second;
@@ -298,12 +292,10 @@ caminho_correto busca_por_a_estrela (Par robo, Par target, AlgoritmoParte2* no) 
                 detalhes_das_celulas[i - 1][j].comando = 'u';
                 printf("Encontramos o target\n");
                 achou_o_target = true;
-                for (int a = 0; a < LINHA; a++) {
-                    for (int b = 0; b < COLUNA; b++) {
-                        caminho_correto.mapa_buscado[a][b] = detalhes_das_celulas[a][b];
-                    }
-                }
-                return caminho_correto;
+                no->reset();
+                rclcpp::sleep_for(3000ms);
+                encontra_caminho(detalhes_das_celulas, target, no);
+                return;
             }
             //Se não está na lista fechada e não é bloqueada
             else if (lista_fechada[i - 1][j] == false
@@ -340,12 +332,10 @@ caminho_correto busca_por_a_estrela (Par robo, Par target, AlgoritmoParte2* no) 
                 detalhes_das_celulas[i + 1][j].comando = 'd';
                 printf("Encontramos o target\n");
                 achou_o_target = true;
-                for (int a = 0; a < LINHA; a++) {
-                    for (int b = 0; b < COLUNA; b++) {
-                        caminho_correto.mapa_buscado[a][b] = detalhes_das_celulas[a][b];
-                    }
-                }
-                return caminho_correto;
+                no->reset();
+                rclcpp::sleep_for(3000ms);
+                encontra_caminho(detalhes_das_celulas, target, no);
+                return;
             }
             //Se não está na lista fechada e não é bloqueada
             else if (lista_fechada[i + 1][j] == false
@@ -382,12 +372,10 @@ caminho_correto busca_por_a_estrela (Par robo, Par target, AlgoritmoParte2* no) 
                 detalhes_das_celulas[i][j- 1].comando = 'l';
                 printf("Encontramos o target\n");
                 achou_o_target = true;
-                for (int a = 0; a < LINHA; a++) {
-                    for (int b = 0; b < COLUNA; b++) {
-                        caminho_correto.mapa_buscado[a][b] = detalhes_das_celulas[a][b];
-                    }
-                }
-                return caminho_correto;
+                no->reset();
+                rclcpp::sleep_for(3000ms);
+                encontra_caminho(detalhes_das_celulas, target, no);
+                return;
             }
             //Se não está na lista fechada e não é bloqueada
             else if (lista_fechada[i][j - 1] == false
@@ -424,12 +412,10 @@ caminho_correto busca_por_a_estrela (Par robo, Par target, AlgoritmoParte2* no) 
                 detalhes_das_celulas[i][j+ 1].comando = 'r';
                 printf("Encontramos o target\n");
                 achou_o_target = true;
-                for (int a = 0; a < LINHA; a++) {
-                    for (int b = 0; b < COLUNA; b++) {
-                        caminho_correto.mapa_buscado[a][b] = detalhes_das_celulas[a][b];
-                    }
-                }
-                return caminho_correto;
+                no->reset();
+                rclcpp::sleep_for(3000ms);
+                encontra_caminho(detalhes_das_celulas, target, no);
+                return;
             }
             //Se não está na lista fechada e não é bloqueada
             else if (lista_fechada[i][j + 1] == false
@@ -462,12 +448,9 @@ caminho_correto busca_por_a_estrela (Par robo, Par target, AlgoritmoParte2* no) 
     if (!achou_o_target)
         printf("A célula target não foi encontrada\n");
 
-    for (int a = 0; a < LINHA; a++) {
-        for (int b = 0; b < COLUNA; b++) {
-            caminho_correto.mapa_buscado[a][b] = detalhes_das_celulas[a][b];
-        }
-    }
-    return caminho_correto;
+    no->reset();
+    rclcpp::sleep_for(3000ms);
+    return;
 }
 
 int main(int argc, char **argv) {    
@@ -484,11 +467,7 @@ int main(int argc, char **argv) {
     Par robo = make_pair(1,1);
     Par target = make_pair(14,14);
 
-    caminho_correto caminho_correto = busca_por_a_estrela(robo, target, no.get());
-
-    no->reset();
-    rclcpp::sleep_for(3000ms);
-    encontra_caminho(caminho_correto.mapa_buscado, target, no.get());
+    busca_por_a_estrela(robo, target, no.get());
 
     rclcpp::shutdown();
 
