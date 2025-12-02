@@ -39,7 +39,7 @@
 
 &emsp; Apesar de fundamentais, as classes de cada algoritmo funciona de modo diferente. No primeiro algoritmo, há a implementação do cliente para o serviço *get_map* (que, como diz o nome, pega o mapa do serviço do labirinto) e do cliente para o serviço *move_command*. Já no segundo algoritmo, há a implementação do cliente *move_command*, *reset* e do subscriber no tópico "/culling_games/robot_sensors". Essa diferença se deve a natureza de navegação no escuro da segunda parte.
 
-&emsp; Já na função ``busca_por_a_estrela``, as diferenças são mínimas. No *corpus* da função, cria-se duas listas: uma fechada e uma aberta. Na lista aberta são inseridos pontos que foram vistos, mas cujos sucessores não foram ainda visitados. Já na lista fechada, inclui-se células visitadas e cujos sucessores já foram visitados. O algoritmo funciona em formato de pilha e inicia com a posição inicial do robô. Então, ele visita células nos pontos cardeais e calcula seu valor h (a distância até o target). Se o valor calculado é menor do que estava previamente na célula, então, nossa posição é definida como (pais) dessa célula, criando uma estrutura de grafo acíclico dirigido em direção ao target que melhora com o mapeamento. Isso funciona até que o robô chegue no target. A diferença entre os dois algoritmos é apenas o método de mapeamento como foi explicado anteriormente.
+&emsp; Já na função ``busca_por_a_estrela``, as diferenças são mínimas. No *corpus* da função, cria-se duas listas: uma fechada e uma aberta. Na lista aberta são inseridos pontos que foram vistos, mas cujos sucessores não foram ainda visitados. Já na lista fechada, inclui-se células visitadas e cujos sucessores já foram visitados. O algoritmo funciona em formato de pilha e inicia com a posição inicial do robô. Então, ele visita células nos pontos cardeais e calcula seu valor h (a distância até o target). Se o valor calculado + a distância até essa célula é menor do que estava previamente na célula, então, nossa posição é definida como pais dessa célula, criando uma estrutura de grafo acíclico dirigido em direção ao target que melhora com o mapeamento. Este ciclo funciona até que o robô chegue no target e os próximos alvos do robô **são selecionados com base nos menores caminhos**. A diferença entre os dois algoritmos é apenas o método de mapeamento como foi explicado anteriormente.
 
 &emsp; Por fim, a função ``encontra_caminho`` ganha um novo significado com o segundo algoritmo. No primeiro, ela é usada apenas após o encontro da melhor rota. Então, o robô segue essa rota em formato de pilha, que começa no sucessor e vai passando pelos pais até o robô. Já no segundo algoritmo, dada a necessidade de sensoriamento, essa função é utilizada ininterruptamente até que se encontre o target. Então, dá-se uma pausa para visualizar e comparar as rotas, e então ela é acionada novamente para levar o robô até o target.
 
@@ -67,6 +67,8 @@ ros2 run meu_pacote algoritmo_parte_2
 E se divirta vendo o robô encontrar uma rota otimizada em outros mapas.
 
 ## Demonstração 
+
+Veja a demonstração e a explicação do pacote [neste vídeo.](https://youtu.be/-uTmP1eDNiI) 
 
 
 * Inspiração: GEEKSFORGEEKS. A* Search Algorithm. Disponível em: <https://www.geeksforgeeks.org/dsa/a-search-algorithm/>. 

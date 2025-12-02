@@ -76,6 +76,7 @@ public:
                 RCLCPP_ERROR(this->get_logger(), "Direção inválida");
                 return -1;
             }
+            rclcpp::sleep_for(20ms);
             return 0;
         } else {
             RCLCPP_ERROR(this->get_logger(), "Falha ao mover");
